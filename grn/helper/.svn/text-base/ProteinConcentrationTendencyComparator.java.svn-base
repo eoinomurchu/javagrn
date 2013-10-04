@@ -1,0 +1,45 @@
+package grn.helper;
+
+import java.util.Comparator;
+
+import grn.Grn;
+import grn.Protein;
+
+public class ProteinConcentrationTendencyComparator implements Comparator {
+
+  /** */
+  private Grn grn;
+
+  public ProteinConcentrationTendencyComparator(Grn grn) {
+    this.grn = grn;
+  } 
+
+  /**
+   *
+   */
+  public int compare(Object aProtein, Object anotherProtein) throws ClassCastException {
+    if (!(aProtein instanceof Protein && aProtein instanceof Protein))
+      throw new ClassCastException("Protein type expected for comparison.");
+
+    double[][] results = grn.results;
+    int length = results.length;
+
+    int outputs = results[0].length - grn.p_proteins.length;
+    int anIndex =  outputs + findProteinIndex((Protein)aProtein, grn.p_proteins);
+    int anotherIndex =  outputs + findProteinIndex((Protein)anotherProtein, grn.p_proteins);
+
+    double aDelta = results[length-1][anIndex] - results[0][anIndex];
+    double anotherDelta = results[length-1][anotherIndex] - results[0][anotherIndex];
+
+    return (int)((aDelta - anotherDelta) * 1e31);
+  }
+
+  private int findProteinIndex(Protein aProtein, Protein[] proteins) {
+    for (int i = 0; i < proteins.length; i++) {
+      if (proteins[i] != null)
+        if (proteins[i].value == aProtein.value)
+          return i;
+    }
+    return -1;
+  }
+}

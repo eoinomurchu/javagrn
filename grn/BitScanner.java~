@@ -1,0 +1,184 @@
+package grn;
+
+import java.util.ArrayList;
+
+import grn.helper.ArrayUtils;
+import individuals.GEChromosome;
+
+public class BitScanner {
+
+  /** */
+  public static int PROMO_MASK = 0x000000FF;
+
+  /** */
+  private static int STARTING_INDEX = -(Gene.SIZE - 2)*32;
+
+  /** */
+  private int currentIndex;
+
+  /** */
+  public int[] chromo;
+
+  public int chromoLength;
+
+  /** */
+  Gene[] tfGenes;
+  int nTfGenes;
+
+  /** */
+  Gene[] pGenes;
+  int nPGenes;
+
+  /**
+   *
+   */
+  public BitScanner(GEChromosome chromo) {
+    this.chromo = chromo.data;
+    chromoLength = chromo.getLength();
+
+    tfGenes = new Gene[chromoLength/8];
+    pGenes = new Gene[chromoLength/8];
+
+    currentIndex = STARTING_INDEX;
+
+    findGenes();
+  }
+
+  /**
+   *
+   */
+  public BitScanner(int[] codons) {
+    this.chromo = codons;
+    chromoLength = chromo.length;
+
+    tfGenes = new Gene[chromoLength/8];
+    pGenes = new Gene[chromoLength/8];
+
+    currentIndex = STARTING_INDEX;
+
+    findGenes();
+  }
+
+  /**
+   *
+   */
+  public Gene[] getTFGenes() {
+    return tfGenes;
+  }
+
+  /**
+   *
+   */
+  public Gene[] getPGenes() {
+    return pGenes;
+  }
+
+  /**
+   *
+   */
+  private void findGenes() {
+    nTfGenes = 0;
+    nPGenes  = 0;
+
+    while ((currentIndex = nextPromoter(currentIndex)) > -1) {
+      tfGenes = ArrayUtils.checkAndResizeArray(tfGenes, nTfGenes);
+      pGenes = ArrayUtils.checkAndResizeArray(pGenes, nTfGenes);
+
+      if (isAPromotor(currentIndex, Gene.TF_PROMOTER)){
+        //System.out.println("Found TF at "+currentIndex);
+        tfGenes[nTfGenes++] = getGeneFromPromotorIndex(currentIndex);
+      }
+      else if (isAPromotor(currentIndex, Gene.P_PROMOTER)){
+        //System.out.println("Found P at "+currentIndex);
+        pGenes[nPGenes++] = getGeneFromPromotorIndex(currentIndex);
+      }
+    }
+
+    tfGenes = ArrayUtils.fitArray(tfGenes, nTfGenes);
+    pGenes  = ArrayUtils.fitArray(pGenes, nPGenes);
+  }
+
+  /**
+   *
+   */
+  private int getIntFromBitIndex(int index) {
+    int codon = index / 32;
+    int bitIndex = index % 32;
+
+    if (bitIndex == 0)
+      return chromo[codon];
+    else if (codon < chromoLength - 1) {
+      return (chromo[codon] << bitIndex) | (chromo[codon+1] >>> (32 - bitIndex));
+    }
+    else if (codon == chromoLength - 1 && bitIndex == 0)
+      return codon;
+    else {
+      System.out.println("Error getting codon value, index too near end of data: "+index+" -> "+codon+":"+bitIndex+" > "+(chromoLength -1));
+      return -1;
+    }
+  }
+
+  private int getBit(int index) {
+    int codon = index / 32;
+    int bitIndex = index % 32;
+
+    int bit = chromo[codon] << bitIndex;
+    return bit >>> 31;
+  }
+
+  /**
+   *
+   */
+  private Gene getGeneFromPromotorIndex(int index) {
+    Gene g = new Gene();
+    g.enhancer  = getIntFromBitIndex(index-64);
+    g.inhibitor = getIntFromBitIndex(index-32);
+    g.promoter  = getIntFromBitIndex(index);
+    g.codons    = new int[5];
+
+    for (int i = 0; i < 5; i++)
+      g.codons[i] = getIntFromBitIndex(index + 32 + (i * 32));
+
+    return g;
+  }
+
+  /**
+   *
+   *
+   * @param
+   * @param
+   * @return
+   */
+  private int nextPromoter(int prevIndex) {
+    if (prevIndex < 0)
+      prevIndex = STARTING_INDEX;
+
+    prevIndex += Gene.SIZE*32;
+
+    while (prevIndex <= chromoLength*32 - 192 &&
+           !isAPromotor(prevIndex, Gene.TF_PROMOTER) &&
+           !isAPromotor(prevIndex, Gene.P_PROMOTER))
+      prevIndex++;
+
+    if (prevIndex > chromoLength*32 - 192)
+      prevIndex = -1;
+
+    return prevIndex;
+  }
+
+
+  /**
+   *
+   *
+   * @param
+   * @param
+   * @return
+   */
+  private boolean isAPromotor(int index, int mask) {
+    int i = getIntFromBitIndex(index);
+
+    //if (((i & PROMO_MASK) ^ mask) == 0)
+    //System.out.println("HERE: "+i+" "+(i & PROMO_MASK)+" "+mask+" "+index+" "+Integer.toBinaryString(i));
+    return ((i & PROMO_MASK) ^ mask) == 0;
+  }
+}
